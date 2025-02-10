@@ -12,9 +12,9 @@ class Play extends Phaser.Scene {
         this.terrainMaxY = 420;
 
         // ROVER & MOVEMENT
-        this.roverRotationSpeed = 1.5;  
-        this.roverThrust = 0.1;       
-        this.maxForwardSpeed = 0.39;  
+        this.roverRotationSpeed = 1.3;  
+        this.roverThrust = 0.05;       
+        this.maxForwardSpeed = 3;  
         this.scrollSpeed = 0;
         this.landed = false;           // Are we currently landed on a refuel pad?
 
@@ -112,7 +112,7 @@ class Play extends Phaser.Scene {
             this.rover.body.setVelocityY(vy);
 
             // Accelerate horizontally
-            let forward = Math.cos(rad) * 0.2; 
+            let forward = Math.cos(rad) * 0.001; 
             this.scrollSpeed += forward;
 
             // Clamp horizontal speed
