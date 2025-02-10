@@ -16,22 +16,23 @@ class Play extends Phaser.Scene {
         this.roverThrust = 0.1;       
         this.maxForwardSpeed = 0.39;  
         this.scrollSpeed = 0;
-        this.landed = false;
+        this.landed = false;           // Are we currently landed on a refuel pad?
+
         // "Gravity" & friction
-        this.friction = 1;       // 1 = no horizontal friction
-        this.gravity = 0.01;     // how fast you fall when not thrusting
+        this.friction = 1;            // 1 = no horizontal friction
+        this.gravity = 0.01;          // how fast you fall when not thrusting
 
         // REFUEL SYSTEM
         this.maxFuel = 100;
         this.fuel = this.maxFuel;
 
         // REFUEL PAD SETTINGS
-        this.refuelPads = [];         // array of { x, y, width, height }
-        this.refuelSpawnChance = 0.1; // 10% chance each terrain segment gets a pad
-        this.refuelWidth = 40;
-        this.refuelHeight = 5;
+        this.refuelPads = [];         // array of { x, y }
+        this.refuelSpawnChance = 0.1; // 10% chance for each new terrain point
+        this.refuelWidth = 40;        // width of pad for collision
+        this.refuelHeight = 3;        // height of pad for drawing
         this.safeLandingSpeed = 20;  // total speed threshold for safe landing
-        this.refuelRate = 1;         // how fast we replenish fuel per frame
+        this.refuelRate = 0.1;         // how fast we replenish fuel per frame
         this.currentPad = null;       // which pad we're currently landed on (if any)
 
         // DISTANCE & HIGHSCORE
@@ -39,6 +40,7 @@ class Play extends Phaser.Scene {
     }
 
     preload() {
+        // Make sure rover.png is at ./assets/rover.png (relative to index.html)
         this.load.image('rover', './assets/rover.png');
     }
 
@@ -72,8 +74,10 @@ class Play extends Phaser.Scene {
         this.fuelText = this.add.text(10, 30, `Fuel: ${this.fuel}`, uiStyle);
         this.highScoreText = this.add.text(10, 50, `High Score: ${gameHighScore}`, uiStyle);
 
-        // this.speedText = this.add.text(10, 70, 'Speed: 0', uiStyle);
+        // NEW: We'll add a line to display your current speed
+        this.speedText = this.add.text(10, 70, 'Speed: 0', uiStyle);
 
+        // Generate initial terrain & draw
         this.initTerrain();
         this.drawTerrain();
     }
@@ -93,8 +97,6 @@ class Play extends Phaser.Scene {
             if (this.currentPad) {
                 this.landed = false;
                 this.currentPad = null;
-                // Give a small vertical boost so we can lift off
-                this.rover.body.setVelocityY(-0.05); 
             }
 
             // Burn fuel
@@ -120,6 +122,9 @@ class Play extends Phaser.Scene {
                 this.scrollSpeed = this.maxForwardSpeed;
             }
 
+            // We are not landed once thrust is applied
+            this.landed = false;
+
         } else {
             // If not thrusting & not landed => apply "gravity"
             if (!this.landed) {
@@ -131,7 +136,7 @@ class Play extends Phaser.Scene {
             // Apply friction to horizontal speed
             this.scrollSpeed *= this.friction;
 
-            // If landed on a pad => refuel over time
+            // If we are landed on a pad => refuel over time
             if (this.landed && this.currentPad) {
                 this.fuel += this.refuelRate;
                 if (this.fuel > this.maxFuel) this.fuel = this.maxFuel;
@@ -157,7 +162,7 @@ class Play extends Phaser.Scene {
         this.fuelText.setText(`Fuel: ${Math.floor(this.fuel)}`);
         this.speedText.setText(`Speed: ${totalSpeed.toFixed(3)}`);
 
-        // Update High Score
+        // Update High Score if needed
         if (this.distance > gameHighScore) {
             gameHighScore = this.distance;
         }
@@ -169,7 +174,7 @@ class Play extends Phaser.Scene {
     // ---------------------------------------------------------
     initTerrain() {
         this.terrainPoints = [];
-        this.refuelPads = [];  
+        this.refuelPads = [];  // clear out any old pads
 
         let endX = this.game.config.width + 200;
         let currentY = Phaser.Math.Between(this.terrainMinY, this.terrainMaxY);
@@ -180,6 +185,7 @@ class Play extends Phaser.Scene {
 
             // Possibly add a refuel pad here
             if (Math.random() < this.refuelSpawnChance) {
+                // We'll place it at the terrain's Y
                 this.refuelPads.push({ x, y: currentY, width: this.refuelWidth, height: this.refuelHeight });
             }
 
@@ -256,9 +262,10 @@ class Play extends Phaser.Scene {
         }
         this.terrainGraphics.strokePath();
 
-        // 2) Draw each refuel pad
+        // 2) Draw each refuel pad (small rectangle)
         this.terrainGraphics.fillStyle(0x00ff00, 1.0);
         for (let pad of this.refuelPads) {
+            // We'll center the pad horizontally so the rover can land on top
             let left = pad.x - pad.width / 2;
             let top = pad.y - pad.height;
             this.terrainGraphics.fillRect(left, top, pad.width, pad.height);
@@ -281,10 +288,10 @@ class Play extends Phaser.Scene {
             let vy = this.rover.body.velocity.y;
             let totalSpeed = Math.sqrt(vx * vx + vy * vy);
 
-            // See if there's a refuel pad near this x
+            // See if there is a refuel pad at (or near) this x
             let pad = this.getRefuelPadAtX(rx, 10); 
             if (pad) {
-                // If we found a pad, check landing speed
+                // If we found a pad, check if our landing speed is safe
                 if (totalSpeed < this.safeLandingSpeed) {
                     // Safe landing on pad
                     this.rover.body.setVelocityY(0);
@@ -293,7 +300,7 @@ class Play extends Phaser.Scene {
                     this.landed = true;
                     this.currentPad = pad;
                 } else {
-                    // Crash
+                    // Crash if speed is too high
                     this.scene.start("menuScene");
                 }
             } else {
@@ -304,6 +311,7 @@ class Play extends Phaser.Scene {
     }
 
     getRefuelPadAtX(x, tolerance = 10) {
+        // Check each pad to see if the rover's x is within "tolerance" range
         for (let pad of this.refuelPads) {
             let padLeft = pad.x - (pad.width / 2) - tolerance;
             let padRight = pad.x + (pad.width / 2) + tolerance;
