@@ -24,6 +24,9 @@ class Play extends Phaser.Scene {
         this.refuelRate = 0.1;
         this.currentPad = null;
         this.distance = 0;
+        this.smokeTimer = 0;
+        // Parallax factor for stars (lower = slower movement)
+        this.starParallaxFactor = 0.3;
     }
 
     preload() {
@@ -35,46 +38,77 @@ class Play extends Phaser.Scene {
         this.physics.world.setBounds(0, 0, this.game.config.width, this.game.config.height);
         this.rover = this.physics.add.sprite(this.game.config.width / 2, this.game.config.height / 2, 'rover');
         this.rover.setOrigin(0.5);
-        this.rover.setScale(0.5);
+        this.rover.setScale(0.6);
         this.rover.body.setAllowGravity(false);
         this.rover.setCollideWorldBounds(false);
         this.terrainGraphics = this.add.graphics();
         this.cursors = this.input.keyboard.createCursorKeys();
-        let uiStyle = { fontFamily: 'Arial', fontSize: '16px', color: '#FFFFFF' };
-        this.distanceText = this.add.text(10, 10, `Distance: 0`, uiStyle);
-        this.highScoreText = this.add.text(10, 50, `High Score: ${gameHighScore}`, uiStyle);
-        this.speedText = this.add.text(10, 70, 'Speed: 0', uiStyle);
+
+        // Create score UI
+        this.scoreUI = this.add.container(10, 10);
+        this.scoreBG = this.add.graphics();
+        this.scoreBG.fillStyle(0x000000, 0.7);
+        this.scoreBG.fillRoundedRect(0, 0, 220, 50, 10);
+        this.scoreUI.add(this.scoreBG);
+        this.distanceText = this.add.text(10, 5, `DIST 0`, { fontFamily: 'Tiny5', fontSize: '16px', color: '#FFFFFF' });
+        this.distanceText.setOrigin(0, 0);
+        this.scoreUI.add(this.distanceText);
+        this.highScoreText = this.add.text(10, 25, `HIGH 0`, { fontFamily: 'Tiny5', fontSize: '16px', color: '#FFD700' });
+        this.highScoreText.setOrigin(0, 0);
+        this.scoreUI.add(this.highScoreText);
+
+        // Create star graphics and star field.
+        // The stars will be drawn as tiny white squares and placed only in the sky.
+        this.starGraphics = this.add.graphics();
+        // Set depth to -1 so the stars are drawn behind everything
+        this.starGraphics.setDepth(-1);
+        this.stars = [];
+        // Generate stars over a field wider than the game (to allow wrapping)
+        for (let i = 0; i < 200; i++) {
+            let star = {
+                // x in a range twice the game width for wrapping
+                x: Phaser.Math.Between(0, this.game.config.width * 2),
+                // y is chosen from 0 up to a bit below the lowest ground (terrainMinY)
+                y: Phaser.Math.Between(0, this.terrainMinY - 10)
+            };
+            this.stars.push(star);
+        }
+
         this.initTerrain();
         this.drawTerrain();
-        this.miniSize = 60;
+
+        this.miniSize = 80;
         this.miniCam = this.cameras.add((this.game.config.width - this.miniSize) / 2, 10, this.miniSize, this.miniSize)
-            .setZoom(2)
+            .setZoom(1.5)
             .setBackgroundColor(0x000000);
         this.miniCam.setVisible(false);
         this.miniCam.startFollow(this.rover);
         this.miniBorder = this.add.graphics().setScrollFactor(0);
-        this.altitudeText = this.add.text(this.game.config.width / 2, 10 + this.miniSize + 5, '', { fontFamily: 'Arial', fontSize: '16px', color: '#FFFFFF' });
+        this.altitudeText = this.add.text(this.game.config.width / 2, 10 + this.miniSize + 5, '', { fontFamily: 'Tiny5', fontSize: '16px', color: '#FFFFFF' });
         this.altitudeText.setScrollFactor(0);
         this.altitudeText.setOrigin(0.5, 0);
         this.fuelBarGraphics = this.add.graphics();
-        this.fuelBarX = this.game.config.width - 10 - 10;
+        this.fuelBarX = this.game.config.width - 20;
         this.fuelBarY = 10;
         this.fuelBarWidth = 10;
-        this.fuelBarHeight = 90;
+        this.fuelBarHeight = 120;
         this.arrowWidth = 8;
         this.arrowHeight = 6;
-        this.fuelLabel = this.add.text(this.fuelBarX + this.fuelBarWidth / 2, this.fuelBarY + this.fuelBarHeight + 10, "FUEL", { fontFamily: 'Arial', fontSize: '10px', color: '#FFFFFF' });
+        this.fuelLabel = this.add.text(this.fuelBarX + this.fuelBarWidth / 2, this.fuelBarY + this.fuelBarHeight + 10, "FUEL", { fontFamily: 'Tiny5', fontSize: '12px', color: '#FFFFFF' });
         this.fuelLabel.setOrigin(0.5, 0);
     }
 
     update(time, delta) {
+        // Update the star background each frame.
+        this.drawStars();
+
         if (this.cursors.left.isDown && this.fuel > 0) {
             this.rover.angle -= this.roverRotationSpeed;
-            this.fuel -= 0.1;
+            this.fuel -= 0.05;
             if (this.fuel < 0) this.fuel = 0;
         } else if (this.cursors.right.isDown && this.fuel > 0) {
             this.rover.angle += this.roverRotationSpeed;
-            this.fuel -= 0.1;
+            this.fuel -= 0.05;
             if (this.fuel < 0) this.fuel = 0;
         }
         let thrustActive = this.cursors.up.isDown && this.fuel > 0;
@@ -84,7 +118,7 @@ class Play extends Phaser.Scene {
                 this.currentPad = null;
                 this.rover.body.setVelocityY(-2);
             }
-            this.fuel -= 0.1;
+            this.fuel -= 0.05;
             if (this.fuel < 0) this.fuel = 0;
             let rad = Phaser.Math.DegToRad(this.rover.angle - 90);
             let vy = this.rover.body.velocity.y;
@@ -119,16 +153,15 @@ class Play extends Phaser.Scene {
         let vx = this.scrollSpeed;
         let vy = this.rover.body.velocity.y;
         let totalSpeed = Math.sqrt(vx * vx + vy * vy);
-        this.distanceText.setText(`Distance: ${Math.floor(this.distance)}`);
-        this.speedText.setText(`Speed: ${totalSpeed.toFixed(3)}`);
+        this.distanceText.setText(`DISTANCE ${Math.floor(this.distance)}m`);
         if (this.distance > gameHighScore) {
             gameHighScore = this.distance;
         }
-        this.highScoreText.setText(`High Score: ${Math.floor(gameHighScore)}`);
+        this.highScoreText.setText(`HIGHSCORE ${Math.floor(gameHighScore)}m`);
         if (this.rover.y < 0) {
             this.miniCam.setVisible(true);
             let altitude = this.getGroundY(this.rover.x) - this.rover.y;
-            this.altitudeText.setText(`DIST: ${Math.floor(altitude)}`);
+            this.altitudeText.setText(`${Math.floor(altitude)}m`);
             this.miniBorder.clear();
             this.miniBorder.lineStyle(2, 0xffffff, 1);
             this.miniBorder.strokeRect((this.game.config.width - this.miniSize) / 2, 10, this.miniSize, this.miniSize);
@@ -145,6 +178,66 @@ class Play extends Phaser.Scene {
         let fuelFillHeight = (this.fuel / 100) * this.fuelBarHeight;
         this.fuelBarGraphics.fillStyle(0xffffff, 1);
         this.fuelBarGraphics.fillRect(this.fuelBarX, this.fuelBarY + (this.fuelBarHeight - fuelFillHeight), this.fuelBarWidth, fuelFillHeight);
+
+        // Smoke effects remain unchanged (with updated offsets)
+        this.smokeTimer += delta;
+        if (this.smokeTimer >= 100 && this.fuel > 0) {
+            if (this.cursors.up.isDown) {
+                this.spawnSmoke(-10, 10);
+                this.spawnSmoke(10, 10);
+            } else if (this.cursors.right.isDown) {
+                this.spawnSmoke(-10, 10);
+            } else if (this.cursors.left.isDown) {
+                this.spawnSmoke(10, 10);
+            }
+            this.smokeTimer = 0;
+        }
+    }
+
+    // Draw the star field using a parallax effect.
+    // Each star's screen x position is offset by distance * starParallaxFactor.
+    // Stars that would be below the ground at that x position (according to getGroundY)
+    // are not drawn.
+    drawStars() {
+        this.starGraphics.clear();
+        let totalWidth = this.game.config.width * 2;
+        for (let star of this.stars) {
+            // Calculate the effective x position using parallax.
+            let effectiveX = star.x - (this.distance * this.starParallaxFactor);
+            // Wrap around horizontally
+            effectiveX = ((effectiveX % totalWidth) + totalWidth) % totalWidth;
+            // Only draw stars that appear on the current screen (0 to game width)
+            if (effectiveX >= 0 && effectiveX <= this.game.config.width) {
+                // Get the ground y at this x position.
+                let groundY = this.getGroundY(effectiveX);
+                // Only draw the star if it's above the ground.
+                if (star.y < groundY) {
+                    this.starGraphics.fillStyle(0xffffff, 1);
+                    // Draw as a tiny square (2x2 pixels)
+                    this.starGraphics.fillRect(effectiveX, star.y, 2, 2);
+                }
+            }
+        }
+    }
+
+    spawnSmoke(offsetX, offsetY) {
+        let theta = Phaser.Math.DegToRad(this.rover.angle);
+        let rotatedX = offsetX * Math.cos(theta) - offsetY * Math.sin(theta);
+        let rotatedY = offsetX * Math.sin(theta) + offsetY * Math.cos(theta);
+        let smokeX = this.rover.x + rotatedX;
+        let smokeY = this.rover.y + rotatedY;
+        let smoke = this.add.graphics({ x: smokeX, y: smokeY });
+        smoke.fillStyle(0xaaaaaa, 1);
+        smoke.fillCircle(0, 0, 3);
+        this.tweens.add({
+            targets: smoke,
+            alpha: 0,
+            scale: 1.5,
+            duration: 300,
+            onComplete: () => {
+                smoke.destroy();
+            }
+        });
     }
 
     initTerrain() {
