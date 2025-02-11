@@ -25,8 +25,12 @@ class Play extends Phaser.Scene {
         this.currentPad = null;
         this.distance = 0;
         this.smokeTimer = 0;
-        // Parallax factor for stars (lower = slower movement)
         this.starParallaxFactor = 0.3;
+    }
+
+    init(data) {
+        this.fuel = this.maxFuel;
+        this.distance = 0;
     }
 
     preload() {
@@ -44,7 +48,6 @@ class Play extends Phaser.Scene {
         this.terrainGraphics = this.add.graphics();
         this.cursors = this.input.keyboard.createCursorKeys();
 
-        // Create score UI
         this.scoreUI = this.add.container(10, 10);
         this.scoreBG = this.add.graphics();
         this.scoreBG.fillStyle(0x000000, 0.7);
@@ -57,18 +60,13 @@ class Play extends Phaser.Scene {
         this.highScoreText.setOrigin(0, 0);
         this.scoreUI.add(this.highScoreText);
 
-        // Create star graphics and star field.
-        // The stars will be drawn as tiny white squares and placed only in the sky.
+      
         this.starGraphics = this.add.graphics();
-        // Set depth to -1 so the stars are drawn behind everything
         this.starGraphics.setDepth(-1);
         this.stars = [];
-        // Generate stars over a field wider than the game (to allow wrapping)
         for (let i = 0; i < 200; i++) {
             let star = {
-                // x in a range twice the game width for wrapping
                 x: Phaser.Math.Between(0, this.game.config.width * 2),
-                // y is chosen from 0 up to a bit below the lowest ground (terrainMinY)
                 y: Phaser.Math.Between(0, this.terrainMinY - 10)
             };
             this.stars.push(star);
@@ -99,7 +97,6 @@ class Play extends Phaser.Scene {
     }
 
     update(time, delta) {
-        // Update the star background each frame.
         this.drawStars();
 
         if (this.cursors.left.isDown && this.fuel > 0) {
@@ -179,7 +176,6 @@ class Play extends Phaser.Scene {
         this.fuelBarGraphics.fillStyle(0xffffff, 1);
         this.fuelBarGraphics.fillRect(this.fuelBarX, this.fuelBarY + (this.fuelBarHeight - fuelFillHeight), this.fuelBarWidth, fuelFillHeight);
 
-        // Smoke effects remain unchanged (with updated offsets)
         this.smokeTimer += delta;
         if (this.smokeTimer >= 100 && this.fuel > 0) {
             if (this.cursors.up.isDown) {
@@ -194,26 +190,16 @@ class Play extends Phaser.Scene {
         }
     }
 
-    // Draw the star field using a parallax effect.
-    // Each star's screen x position is offset by distance * starParallaxFactor.
-    // Stars that would be below the ground at that x position (according to getGroundY)
-    // are not drawn.
     drawStars() {
         this.starGraphics.clear();
         let totalWidth = this.game.config.width * 2;
         for (let star of this.stars) {
-            // Calculate the effective x position using parallax.
             let effectiveX = star.x - (this.distance * this.starParallaxFactor);
-            // Wrap around horizontally
             effectiveX = ((effectiveX % totalWidth) + totalWidth) % totalWidth;
-            // Only draw stars that appear on the current screen (0 to game width)
             if (effectiveX >= 0 && effectiveX <= this.game.config.width) {
-                // Get the ground y at this x position.
                 let groundY = this.getGroundY(effectiveX);
-                // Only draw the star if it's above the ground.
                 if (star.y < groundY) {
                     this.starGraphics.fillStyle(0xffffff, 1);
-                    // Draw as a tiny square (2x2 pixels)
                     this.starGraphics.fillRect(effectiveX, star.y, 2, 2);
                 }
             }
