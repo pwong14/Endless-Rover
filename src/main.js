@@ -8,7 +8,6 @@ let config = {
     physics: {
         default: 'arcade',
         arcade: {
-            // optional settings
             gravity: { y: 0 },
             debug: false
         }

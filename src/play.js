@@ -26,6 +26,7 @@ class Play extends Phaser.Scene {
         this.distance = 0;
         this.smokeTimer = 0;
         this.starParallaxFactor = 0.3;
+        this.currentRocketSound = null;
     }
 
     init(data) {
@@ -35,6 +36,10 @@ class Play extends Phaser.Scene {
 
     preload() {
         this.load.image('rover', './assets/rover.png');
+        this.load.audio('rocket1', './assets/rocket1.mp3');
+        this.load.audio('rocket2', './assets/rocket2.mp3');
+        this.load.audio('rocket3', './assets/rocket3.mp3');
+        this.load.audio('explosion', './assets/explosion.mp3');
     }
 
     create() {
@@ -60,7 +65,6 @@ class Play extends Phaser.Scene {
         this.highScoreText.setOrigin(0, 0);
         this.scoreUI.add(this.highScoreText);
 
-      
         this.starGraphics = this.add.graphics();
         this.starGraphics.setDepth(-1);
         this.stars = [];
@@ -97,6 +101,19 @@ class Play extends Phaser.Scene {
     }
 
     update(time, delta) {
+        if (this.cursors.left.isDown || this.cursors.right.isDown || this.cursors.up.isDown) {
+            if (!this.currentRocketSound) {
+                let rocketSoundIndex = Phaser.Math.Between(1, 3);
+                this.currentRocketSound = this.sound.add('rocket' + rocketSoundIndex, { loop: true });
+                this.currentRocketSound.play();
+            }
+        } else {
+            if (this.currentRocketSound) {
+                this.currentRocketSound.stop();
+                this.currentRocketSound = null;
+            }
+        }
+
         this.drawStars();
 
         if (this.cursors.left.isDown && this.fuel > 0) {
@@ -340,9 +357,11 @@ class Play extends Phaser.Scene {
                     this.landed = true;
                     this.currentPad = pad;
                 } else {
+                    this.sound.play('explosion');
                     this.scene.start("menuScene");
                 }
             } else {
+                this.sound.play('explosion');
                 this.scene.start("menuScene");
             }
         }
