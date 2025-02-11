@@ -8,7 +8,6 @@ class Menu extends Phaser.Scene {
     }
 
     create() {
-        // Play background music indefinitely
         let music = this.sound.add('toTheSpace', { loop: true });
         music.play();
 
@@ -72,6 +71,19 @@ class Menu extends Phaser.Scene {
         line4Texts[2].x = line4Texts[0].width + line4Texts[1].width;
         let line4Width = line4Texts[0].width + line4Texts[1].width + line4Texts[2].width;
         this.add.container((this.game.config.width - line4Width) / 2, this.game.config.height / 2 + 80, line4Texts);
+
+        let creditsConfig = {
+            fontFamily: 'Tiny5',
+            fontSize: '14px',
+            color: '#FFFFFF',
+            align: 'center'
+        };
+        this.add.text(
+            this.game.config.width / 2,
+            this.game.config.height - 30,
+            "Credits: Music by alkakrab, SFX by u_a7pk5xrn16 and freesound_community",
+            creditsConfig
+        ).setOrigin(0.5);
 
         this.startKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     }

@@ -86,7 +86,7 @@ class Play extends Phaser.Scene {
         this.miniCam.setVisible(false);
         this.miniCam.startFollow(this.rover);
         this.miniBorder = this.add.graphics().setScrollFactor(0);
-        this.altitudeText = this.add.text(this.game.config.width / 2, 10 + this.miniSize + 5, '', { fontFamily: 'Tiny5', fontSize: '16px', color: '#FFFFFF' });
+        this.altitudeText = this.add.text(this.game.config.width / 2, 10 + this.miniSize + 5, '', { fontFamily: 'Tiny5', fontSize: '21px', color: '#FFFFFF' });
         this.altitudeText.setScrollFactor(0);
         this.altitudeText.setOrigin(0.5, 0);
         this.fuelBarGraphics = this.add.graphics();
